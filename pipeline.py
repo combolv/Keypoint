@@ -29,7 +29,7 @@ from dataset import coco
 import timm
 from swinTposeModel import KeypointDetector as MyNet
 from swinTposeModel import swintBackbone as model_backbone
-from swinTposeModel import DeepLabV3Head as model_head
+from swinTposeModel import DeconvHead as model_head
 
 # KeypointDetector(swintBackbone(pretrained=False),DeepLabV3Head())
 
@@ -63,15 +63,17 @@ def parse_args():
     parser.add_argument('--img-size', default=224, type=int) # [224, 384] is supported
     parser.add_argument('--htmp-ratio', default=4, type=int) # output size is 1/htmp-ratio of the original
 
-    parser.add_argument('--save-interval', default=1, type=int)
+    parser.add_argument('--save-interval', default=10, type=int)
     parser.add_argument('--resume', default='None', type=str) # unused
 
-    parser.add_argument('--save-no', default=6, type=int)
+    parser.add_argument('--save-no', default=8, type=int)
 
     # you need to output the det result to json at inference stage.
     parser.add_argument('--bbox_json', default='data/coco/person_detection_results/COCO_val2017_detections_AP_H_56_person.json', type=str)
 
-    parser.add_argument('--log-name', default='experiment', type=str)
+    parser.add_argument('--log-name', default='formal', type=str)
+    parser.add_argument('--print-freq', default=4000, type=int)
+    parser.add_argument('--vis', default=False, action='store_true')
 
     args = parser.parse_args()
 
@@ -84,15 +86,15 @@ def main():
     BaseNet = MyNet(model_backbone(name=model_name, pretrained=True), model_head(down_scale=args.htmp_ratio, in_channels=768))
     BaseNet = BaseNet.cuda(args.cuda)
 
-    config = {'OUTPUT_DIR': 'output', 'LOG_DIR': 'log', 'DATA_DIR': '', 'GPU': args.cuda, 'WORKERS': args.num_workers, 'PRINT_FREQ': 100,
+    config = {'OUTPUT_DIR': 'output', 'LOG_DIR': 'log', 'DATA_DIR': '', 'GPU': args.cuda, 'WORKERS': args.num_workers, 'PRINT_FREQ': args.print_freq,
               'CUDNN': {'BENCHMARK': True, 'DETERMINISTIC': False, 'ENABLED': True},
               'MODEL': {'NAME': 'MyNet', 'INIT_WEIGHTS': True, 'PRETRAINED': 'None', 'NUM_JOINTS': 17, 'IMAGE_SIZE': np.array((args.img_size, args.img_size)),
                         'EXTRA': {'TARGET_TYPE': 'gaussian', 'HEATMAP_SIZE': np.array((args.img_size // args.htmp_ratio, args.img_size // args.htmp_ratio)), 'SIGMA': 2, 'FINAL_CONV_KERNEL': 1, 'DECONV_WITH_BIAS': False, 'NUM_DECONV_LAYERS': 3, 'NUM_LAYERS': args.save_no}, 'STYLE': 'pytorch'},
               'LOSS': {'USE_TARGET_WEIGHT': True}, 'DATASET': {'ROOT': 'data/coco/', 'DATASET': 'coco', 'TRAIN_SET': 'train2017', 'TEST_SET': 'val2017', 'DATA_FORMAT': 'jpg', 'HYBRID_JOINTS_TYPE': '', 'SELECT_DATA': False, 'FLIP': True, 'SCALE_FACTOR': 0.3, 'ROT_FACTOR': 40},
-              'TRAIN': {'LR_FACTOR': 0.1, 'LR_STEP': [20, 50], 'LR': 0.001, 'OPTIMIZER': 'adam', 'MOMENTUM': 0.9, 'WD': 0.0001, 'NESTEROV': False, 'GAMMA1': 0.99, 'GAMMA2': 0.0, 'BEGIN_EPOCH': 0, 'END_EPOCH': 140, 'RESUME': False, 'CHECKPOINT': '', 'BATCH_SIZE': 32, 'SHUFFLE': True},
+              'TRAIN': {'LR_FACTOR': 0.1, 'LR_STEP': [40, 80], 'LR': 0.001, 'OPTIMIZER': 'adam', 'MOMENTUM': 0.9, 'WD': 0.0001, 'NESTEROV': False, 'GAMMA1': 0.99, 'GAMMA2': 0.0, 'BEGIN_EPOCH': 0, 'END_EPOCH': 140, 'RESUME': False, 'CHECKPOINT': '', 'BATCH_SIZE': 32, 'SHUFFLE': True},
               'TEST': {'BATCH_SIZE': args.batch_size, 'FLIP_TEST': False, 'POST_PROCESS': True, 'SHIFT_HEATMAP': True, 'USE_GT_BBOX': True, 'OKS_THRE': 0.9, 'IN_VIS_THRE': 0.2, 'COCO_BBOX_FILE': args.bbox_json, 'BBOX_THRE': 1.0, 'MODEL_FILE': '', 'IMAGE_THRE': 0.0, 'NMS_THRE': 1.0},
-              # 'DEBUG': {'DEBUG': True, 'SAVE_BATCH_IMAGES_GT': True, 'SAVE_BATCH_IMAGES_PRED': True, 'SAVE_HEATMAPS_GT': True, 'SAVE_HEATMAPS_PRED': True}}
-              'DEBUG': {'DEBUG': False, 'SAVE_BATCH_IMAGES_GT': False, 'SAVE_BATCH_IMAGES_PRED': False, 'SAVE_HEATMAPS_GT': False, 'SAVE_HEATMAPS_PRED': False}}
+              'DEBUG': {'DEBUG': args.vis, 'SAVE_BATCH_IMAGES_GT': args.vis, 'SAVE_BATCH_IMAGES_PRED': args.vis, 'SAVE_HEATMAPS_GT': args.vis, 'SAVE_HEATMAPS_PRED': args.vis}}
+
     config = edict(config)
 
     criterion = JointsMSELoss(use_target_weight=True).cuda(args.cuda)

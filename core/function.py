@@ -37,18 +37,6 @@ def train(config, train_loader, model, criterion, optimizer, epoch,
 
     end = time.time()
 
-    # i = -1
-    # iterable_train_data = train_loader.__iter__()
-    # while True:
-    #     i += 1
-    #     try:
-    #         data = iterable_train_data.__next__()
-    #     except StopIteration:
-    #         break
-    #     except ValueError:
-    #         i -= 1
-    #         continue
-    #     input, target, target_weight, meta = data
     for i, (input, target, target_weight, meta) in enumerate(train_loader):
         # measure data loading time
         data_time.update(time.time() - end)

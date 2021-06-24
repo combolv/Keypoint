@@ -61,6 +61,36 @@ class DeepLabV3Head(torch.nn.Module):
         return x
 
 
+class DeconvHead(torch.nn.Module):
+    def __init__(self, down_scale=1, num_keypoints=17, in_channels=1024, in_stride=32):
+        super(DeconvHead, self).__init__()
+        self.down_scale = down_scale
+        self.num_keypoints = num_keypoints
+        self.head = DeepLabHead(in_channels//8, num_keypoints)
+        self.in_channels = in_channels
+        self.in_stride = in_stride
+        self.deconv_layer_1 = self._get_deconv_layer(self.in_channels)
+        self.deconv_layer_2 = self._get_deconv_layer(self.in_channels//2)
+        self.deconv_layer_3 = self._get_deconv_layer(self.in_channels//4)
+
+    def _get_deconv_layer(self, num_channel):
+        return torch.nn.ConvTranspose2d(
+                    in_channels=num_channel,
+                    out_channels=num_channel//2,
+                    kernel_size=3,
+                    stride=2,
+                    padding=1,
+                    output_padding=1,
+                    bias=True)
+
+    def forward(self, x):
+        x = self.deconv_layer_1(x)
+        x = self.deconv_layer_2(x)
+        x = self.deconv_layer_3(x)
+        x = self.head(x)
+        return x
+
+
 class KeypointDetector(torch.nn.Module):
     def __init__(self, backbone, head):
         super(KeypointDetector, self).__init__()
@@ -73,9 +103,12 @@ class KeypointDetector(torch.nn.Module):
         return pred
 
 if __name__ == '__main__':
-    net = KeypointDetector(swintBackbone(pretrained=False),DeepLabV3Head())
-    a = torch.randn(2,3,384,384)
+    net = KeypointDetector(swintBackbone(pretrained=False), DeconvHead())
+    a = torch.randn(2, 3, 384, 384)
     out = net(a)
+    # net = KeypointDetector(swintBackbone(pretrained=False),DeepLabV3Head())
+    # a = torch.randn(2,3,384,384)
+    # out = net(a)
     print(net)
     print(f'Parameters: {sum(i.numel() for i in net.parameters()) / 1e6}M')
     print(out.size())
